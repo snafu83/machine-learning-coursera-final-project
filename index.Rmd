@@ -1,0 +1,86 @@
+---
+title: "machine learning project"
+author: "christian"
+date: "27 December 2015"
+output: html_document
+---
+
+## Background
+
+Using devices such as Jawbone Up, Nike FuelBand, and Fitbit it is now possible to collect a large amount of data about personal activity relatively inexpensively. These type of devices are part of the quantified self movement – a group of enthusiasts who take measurements about themselves regularly to improve their health, to find patterns in their behavior, or because they are tech geeks. One thing that people regularly do is quantify how much of a particular activity they do, but they rarely quantify how well they do it. In this project, your goal will be to use data from
+accelerometers on the belt, forearm, arm, and dumbell of 6 participants. They were asked to perform barbell lifts correctly and incorrectly in 5 different ways. More information is available from the website here: http://groupware.les.inf.puc.rio.br/har (see the section on the Weight Lifting Exercise Dataset).
+
+## Introduction
+
+The goal of this project is to predict the manner in which they did the exercise. This is the "classe" variable in the training set. All the other variables, which were left after cleaning, were used to predict. The data can be found here:
+
+set   | link
+------|---------------------------------------------------------------------
+test  | https://d396qusza40orc.cloudfront.net/predmachlearn/pml-testing.csv
+train | https://d396qusza40orc.cloudfront.net/predmachlearn/pml-training.csv
+
+## Data Analysis
+
+# Loading and cleaning data
+
+The two sets are saved as training and testing2. Next step is to clean the sets, i.e. the dates are transformed to the posixct format and all columns containing NA's are removed.
+
+```{r}
+## load packages
+
+library(ggplot2)
+library(caret)
+library(randomForest)
+library(rattle)
+
+## load data
+
+training <- read.csv("../pml-training1.csv", header = TRUE, sep = ",", na.strings=c("NA","#DIV/0!",""))
+testing2 <- read.csv("../pml-testing.csv", header = TRUE, sep = ",", na.strings=c("NA","#DIV/0!",""))
+
+## change date format
+
+training$cvtd_timestamp <- as.POSIXct(training$cvtd_timestamp, format = "%d/%m/%Y %H:%M", tz = "America/Sao_Paulo")
+testing2$cvtd_timestamp <- as.POSIXct(testing2$cvtd_timestamp, format = "%d/%m/%Y %H:%M", tz = "America/Sao_Paulo")
+
+## remove all columns with NA's
+
+training <- training[, colSums(is.na(training)) == 0]
+training <- training[, -1]
+training <- training[, -5]
+testing2 <- testing2[, which(names(testing2) %in% names(training))]
+```
+
+As next we create a training and test set.
+
+```{r}
+## create training and test set
+set.seed(15132)
+
+inTrain <- createDataPartition(y = training$classe, p = 0.7, list = FALSE)
+training <- training[inTrain,]
+testing <- training[-inTrain,]
+```
+
+# Model selection
+
+First we try a simple classification model (rpart). When we take the test set for prediction and create a confusion matrix we see that this model performs quite badly. Therefore we will create a second model using random forest.
+
+```{r}
+## first model
+modFit <- train(classe ~., method = "rpart", data = training)
+print(modFit$finalModel)
+pred <- predict(modFit, newdata = testing)
+confusionMatrix(pred, testing$classe)
+modFit3 <- randomForest(classe ~., data = training, ntree = 50)
+pred3 <- predict(modFit3, newdata = testing, type = "class")
+confusionMatrix(pred3, testing$classe)
+```
+
+As we can see the error rate falls fast under 0.01 with roughly 25 trees. Therefore we choose 50 trees and should get a good chance of predicting all 20 test cases right. There is a chance that we overpredicted our data since we get an accuracy of 1.
+
+```{r}
+plot(modFit3)
+```
+
+Overall we choose the random forest model for the test cases as our best model.
